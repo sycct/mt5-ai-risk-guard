@@ -87,7 +87,8 @@ class Mt5Adapter:
         for key in ("account", "account_info", "data", "result"):
             if isinstance(d.get(key), dict): d = d[key]; break
         return Account(login=_pick(d, "login", "account"), server=_pick(d, "server"), balance=_pick(d, "balance"),
-                       equity=_pick(d, "equity"), margin=_pick(d, "margin"),
+                       equity=_pick(d, "equity"), credit=_pick(d, "credit"), profit=_pick(d, "profit"),
+                       commission=_pick(d, "commission"), margin=_pick(d, "margin"),
                        free_margin=_pick(d, "free_margin", "margin_free"),
                        margin_level=_pick(d, "margin_level", "margin_level_percent"), currency=_pick(d, "currency"))
 

@@ -37,6 +37,9 @@ class Account(BaseModel):
     server: str | None = None
     balance: float | None = None
     equity: float | None = None
+    credit: float | None = None
+    profit: float | None = None
+    commission: float | None = None
     margin: float | None = None
     free_margin: float | None = None
     margin_level: float | None = None
@@ -111,7 +114,14 @@ class Mt5Snapshot(BaseModel):
 class RiskMetrics(BaseModel):
     balance: float | None = None
     equity: float | None = None
+    credit: float | None = None
+    account_profit: float | None = None
+    account_commission: float | None = None
     floating_profit: float
+    positions_floating_profit: float = 0
+    equity_balance_gap: float | None = None
+    reconciliation_error: float | None = None
+    data_quality_issues: list[str] = Field(default_factory=list)
     equity_drawdown_money: float | None = None
     equity_drawdown_percent: float | None = None
     margin_level: float | None = None

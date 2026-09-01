@@ -83,6 +83,9 @@ async def _check_once(quiet: bool = False):
                         if name in ("account", "account_data", "positions")]
     assessment = evaluate_rules(calculate_metrics(snapshot, settings.ea_magic), _thresholds(settings),
                                 critical_missing)
+    if assessment.metrics.data_quality_issues:
+        logging.warning("MT5 数据无法完全对账: %s", ", ".join(assessment.metrics.data_quality_issues))
+        storage.audit("data_quality_warning", {"issues": assessment.metrics.data_quality_issues})
     report = hard_rule_fallback(assessment)
     if settings.deepseek_api_key and assessment.level is not RiskLevel.DATA_UNAVAILABLE:
         try: report = await DeepSeekRiskAnalyst(settings.deepseek_api_key, settings.deepseek_base_url, settings.deepseek_model).analyze(snapshot, assessment)

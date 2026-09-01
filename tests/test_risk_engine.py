@@ -18,3 +18,21 @@ def test_empty_positions():
     assert m.total_lots == m.net_lots == m.floating_profit == 0
     assert m.net_direction == "neutral"
 
+
+def test_account_equity_reconciliation_and_profit_mismatch():
+    snapshot = Mt5Snapshot(
+        account=Account(balance=50000, equity=49910, credit=10, profit=-100),
+        positions=[Position(type="buy", volume=.1, profit=-90)],
+    )
+    m = calculate_metrics(snapshot)
+    assert m.equity_balance_gap == -90
+    assert m.reconciliation_error == 0
+    assert m.positions_floating_profit == -90
+    assert m.account_profit == -100
+    assert m.data_quality_issues == ["account_and_positions_profit_mismatch"]
+
+
+def test_missing_account_profit_is_reported_when_equity_differs():
+    m = calculate_metrics(Mt5Snapshot(account=Account(balance=50000, equity=49990)))
+    assert m.reconciliation_error is None
+    assert m.data_quality_issues == ["account_profit_missing_for_equity_reconciliation"]

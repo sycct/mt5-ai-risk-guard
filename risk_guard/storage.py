@@ -19,8 +19,20 @@ class JsonlStorage:
         m = assessment.metrics
         record = {"timestamp": snapshot.timestamp.isoformat(), "account": snapshot.account.login,
             "symbol": snapshot.symbol.symbol if snapshot.symbol else None, "balance": m.balance,
-            "equity": m.equity, "floating_profit": m.floating_profit, "margin_level": m.margin_level,
-            "total_lots": m.total_lots, "net_lots": m.net_lots, "risk_level": assessment.level.name,
+            "equity": m.equity, "credit": m.credit, "account_profit": m.account_profit,
+            "account_commission": m.account_commission,
+            "floating_profit": m.floating_profit,
+            "positions_floating_profit": m.positions_floating_profit,
+            "equity_balance_gap": m.equity_balance_gap,
+            "reconciliation_error": m.reconciliation_error,
+            "data_quality_issues": m.data_quality_issues,
+            "margin": snapshot.account.margin, "free_margin": snapshot.account.free_margin,
+            "margin_level": m.margin_level, "total_lots": m.total_lots, "net_lots": m.net_lots,
+            "total_positions_count": m.total_positions_count,
+            "pending_orders_count": m.pending_orders_count,
+            "ea_positions_count": m.ea_positions_count,
+            "ea_pending_orders_count": m.ea_pending_orders_count,
+            "risk_level": assessment.level.name,
             "hard_rule_hits": [x.model_dump(mode="json") for x in assessment.hard_rule_hits],
             "deepseek_summary": report.summary, "missing_capabilities": snapshot.missing_capabilities}
         self._append("risk_snapshots.jsonl", record)
@@ -41,4 +53,3 @@ class JsonlStorage:
                 if datetime.fromisoformat(item["timestamp"]).astimezone().date() == target: records.append(item)
             except (ValueError, KeyError, json.JSONDecodeError): continue
         return records
-

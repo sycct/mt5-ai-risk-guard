@@ -7,8 +7,23 @@ def calculate_metrics(snapshot: Mt5Snapshot, ea_magic: int = 9527) -> RiskMetric
     # MT5 volume steps are decimal values; normalize binary-float artifacts before rules.
     buy_lots = round(sum(p.volume for p in buys), 8)
     sell_lots = round(sum(p.volume for p in sells), 8)
-    floating = sum(p.profit for p in snapshot.positions)
+    positions_profit = sum(p.profit for p in snapshot.positions)
     balance, equity = snapshot.account.balance, snapshot.account.equity
+    credit, account_profit = snapshot.account.credit, snapshot.account.profit
+    equity_balance_gap = equity - balance if balance is not None and equity is not None else None
+    reconciliation_error = None
+    data_quality_issues: list[str] = []
+    if balance is not None and equity is not None:
+        if account_profit is None:
+            if abs(equity_balance_gap or 0) > 0.01:
+                data_quality_issues.append("account_profit_missing_for_equity_reconciliation")
+        else:
+            expected_equity = balance + (credit or 0) + account_profit
+            reconciliation_error = equity - expected_equity
+            if abs(reconciliation_error) > 0.01:
+                data_quality_issues.append("equity_reconciliation_mismatch")
+            if abs(account_profit - positions_profit) > 0.01:
+                data_quality_issues.append("account_and_positions_profit_mismatch")
     dd_money = max(0.0, balance - equity) if balance is not None and equity is not None else None
     dd_percent = dd_money / balance * 100 if dd_money is not None and balance and balance > 0 else None
     buy_profit, sell_profit = sum(p.profit for p in buys), sum(p.profit for p in sells)
@@ -17,7 +32,10 @@ def calculate_metrics(snapshot: Mt5Snapshot, ea_magic: int = 9527) -> RiskMetric
     ea_positions = [p for p in snapshot.positions if p.magic == ea_magic]
     ea_orders = [o for o in snapshot.pending_orders if o.magic == ea_magic]
     return RiskMetrics(
-        balance=balance, equity=equity, floating_profit=floating,
+        balance=balance, equity=equity, credit=credit, account_profit=account_profit,
+        account_commission=snapshot.account.commission, floating_profit=positions_profit,
+        positions_floating_profit=positions_profit, equity_balance_gap=equity_balance_gap,
+        reconciliation_error=reconciliation_error, data_quality_issues=data_quality_issues,
         equity_drawdown_money=dd_money, equity_drawdown_percent=dd_percent,
         margin_level=snapshot.account.margin_level,
         spread=snapshot.symbol.spread if snapshot.symbol else None,
