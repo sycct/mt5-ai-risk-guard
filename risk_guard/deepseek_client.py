@@ -3,7 +3,6 @@ import logging
 
 from openai import AsyncOpenAI
 from pydantic import ValidationError
-from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_fixed
 
 from .models import AiRiskReport, Mt5Snapshot, RiskAssessment, RiskLevel
 from .risk_rules import ACTIONS
@@ -29,8 +28,6 @@ class DeepSeekRiskAnalyst:
         self.client = AsyncOpenAI(api_key=api_key, base_url=base_url)
         self.model = model
 
-    @retry(stop=stop_after_attempt(2), wait=wait_fixed(1),
-           retry=retry_if_exception_type((InvalidAiResponse, json.JSONDecodeError, ValidationError)), reraise=True)
     async def analyze(self, snapshot: Mt5Snapshot, assessment: RiskAssessment) -> AiRiskReport:
         payload = {
             "hard_rule_level": assessment.level.name,

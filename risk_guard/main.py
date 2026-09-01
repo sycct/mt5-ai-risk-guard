@@ -80,7 +80,8 @@ async def _check_once(quiet: bool = False):
         console.print(f"[red]MT5 MCP 暂不可用：{exc}[/red]")
         return None
     critical_missing = [name for name in snapshot.missing_capabilities
-                        if name in ("account", "account_data", "positions")]
+                        if name in ("account", "account_data", "positions",
+                                    "positions_volume_data", "margin_level_data")]
     assessment = evaluate_rules(calculate_metrics(snapshot, settings.ea_magic), _thresholds(settings),
                                 critical_missing)
     if assessment.metrics.data_quality_issues:

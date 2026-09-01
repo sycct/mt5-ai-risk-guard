@@ -31,9 +31,12 @@ def _items(value: Any, keys: tuple[str, ...]) -> list[dict[str, Any]]:
 
 
 def _pick(data: dict[str, Any], *names: str, default: Any = None) -> Any:
-    lowered = {str(k).lower(): v for k, v in data.items()}
+    def normalize(value: Any) -> str:
+        return "".join(character for character in str(value).lower() if character.isalnum())
+
+    lowered = {normalize(k): v for k, v in data.items()}
     for name in names:
-        if name.lower() in lowered: return lowered[name.lower()]
+        if normalize(name) in lowered: return lowered[normalize(name)]
     return default
 
 
@@ -65,8 +68,16 @@ class Mt5Adapter:
         account = self._account(raw.get("account"))
         if account.balance is None or account.equity is None:
             missing.append("account_data")
+        positions = self._positions(raw.get("positions"))
+        if positions and not any(position.volume > 0 for position in positions):
+            missing.append("positions_volume_data")
+        if positions and account.margin_level is None:
+            missing.append("margin_level_data")
+        symbol = self._symbol(raw.get("symbol_info"))
+        if symbol is not None and symbol.spread is None:
+            missing.append("symbol_spread_data")
         return Mt5Snapshot(timestamp=datetime.now(timezone.utc), account=account,
-                           symbol=self._symbol(raw.get("symbol_info")), positions=self._positions(raw.get("positions")),
+                           symbol=symbol, positions=positions,
                            pending_orders=self._orders(raw.get("orders")), history=self._history(raw.get("history")),
                            missing_capabilities=sorted(set(missing)))
 
@@ -98,7 +109,8 @@ class Mt5Adapter:
 
     def _positions(self, raw: Any) -> list[Position]:
         return [Position(ticket=_pick(x, "ticket", "id"), symbol=_pick(x, "symbol"), type=_pick(x, "type", "side"),
-            volume=_pick(x, "volume", "lots", default=0) or 0, open_price=_pick(x, "open_price", "price_open"),
+            volume=_pick(x, "volume", "lots", "lot", "volume_current", "current_volume", "volume_lots", "size", default=0) or 0,
+            open_price=_pick(x, "open_price", "price_open"),
             current_price=_pick(x, "current_price", "price_current"), profit=_pick(x, "profit", default=0) or 0,
             swap=_pick(x, "swap"), commission=_pick(x, "commission"), magic=_pick(x, "magic"),
             comment=_pick(x, "comment"), open_time=_pick(x, "open_time", "time"))
@@ -119,9 +131,9 @@ class Mt5Adapter:
                       if str(_pick(item, "symbol", "name", default="")).upper() == self.symbol.upper()), items[0])
         for key in ("symbol_info", "tick", "data", "result"):
             if isinstance(d.get(key), dict): d = d[key]; break
-        bid, ask = _pick(d, "bid"), _pick(d, "ask")
+        bid, ask = _pick(d, "bid", "bid_price", "price_bid"), _pick(d, "ask", "ask_price", "price_ask")
         point = _pick(d, "point")
-        spread = _pick(d, "spread")
+        spread = _pick(d, "spread", "spread_points", "spread_in_points")
         if spread is None and bid is not None and ask is not None:
             spread = (ask - bid) / point if point else ask - bid
         return SymbolInfo(symbol=_pick(d, "symbol", "name", default=self.symbol), bid=bid, ask=ask, spread=spread,

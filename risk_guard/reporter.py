@@ -22,7 +22,8 @@ def render_report(console: Console, snapshot: Mt5Snapshot, assessment: RiskAsses
                         ("净值-余额", m.equity_balance_gap), ("净值对账误差", m.reconciliation_error),
                         ("净值回撤 %", m.equity_drawdown_percent), ("保证金比例", m.margin_level),
                         ("总手数", m.total_lots), ("净手数", m.net_lots),
-                        ("持仓 / 挂单", f"{m.total_positions_count} / {m.pending_orders_count}")):
+                        ("持仓 / 挂单", f"{m.total_positions_count} / {m.pending_orders_count}"),
+                        ("今日已实现盈亏", snapshot.history.today_closed_profit if snapshot.history else None)):
         table.add_row(name, "未知" if value is None else str(round(value, 4) if isinstance(value, float) else value))
     console.print(table)
     console.print("[bold]主要风险：[/bold] " + "；".join(report.main_risks))

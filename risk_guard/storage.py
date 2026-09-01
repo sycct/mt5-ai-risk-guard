@@ -32,6 +32,10 @@ class JsonlStorage:
             "pending_orders_count": m.pending_orders_count,
             "ea_positions_count": m.ea_positions_count,
             "ea_pending_orders_count": m.ea_pending_orders_count,
+            "today_closed_profit": snapshot.history.today_closed_profit if snapshot.history else None,
+            "today_gross_profit": snapshot.history.today_gross_profit if snapshot.history else None,
+            "today_gross_loss": snapshot.history.today_gross_loss if snapshot.history else None,
+            "today_trade_count": snapshot.history.today_trade_count if snapshot.history else None,
             "risk_level": assessment.level.name,
             "hard_rule_hits": [x.model_dump(mode="json") for x in assessment.hard_rule_hits],
             "deepseek_summary": report.summary, "missing_capabilities": snapshot.missing_capabilities}
