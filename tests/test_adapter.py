@@ -9,9 +9,10 @@ class FakeClient:
         self.calls = []
         self.tools = [
             ToolInfo(name="get_trading_account_info", inputSchema={"type": "object"}),
-            ToolInfo(name="get_trading_open_positions", inputSchema={"type": "object"}),
+            ToolInfo(name="get_trading_open_positions", inputSchema={"type": "object", "properties": {"symbol": {"type": "string"}}}),
             ToolInfo(name="get_marketwatch_symbols", inputSchema={"type": "object", "properties": {"symbol": {"type": "string"}}}),
-            ToolInfo(name="get_trading_history_positions", inputSchema={"type": "object"}),
+            ToolInfo(name="get_trading_history_positions", inputSchema={"type": "object", "properties": {
+                "symbol": {"type": "string"}, "date_from": {"type": "string"}, "date_to": {"type": "string"}}}),
         ]
 
     async def list_tools(self):
@@ -45,3 +46,15 @@ async def test_combined_positions_and_orders_tool_is_called_once_and_split():
     assert client.calls.count("get_trading_open_positions") == 1
     assert snapshot.symbol and snapshot.symbol.symbol == "XAUUSD"
     assert snapshot.missing_capabilities == []
+
+
+def test_only_symbol_info_is_filtered_by_symbol():
+    adapter = Mt5Adapter(FakeClient(), "XAUUSD")
+    tools = {item.name: item for item in adapter.client.tools}
+
+    assert adapter._arguments(tools["get_trading_open_positions"], "positions") == {}
+    assert adapter._arguments(tools["get_marketwatch_symbols"], "symbol_info") == {"symbol": "XAUUSD"}
+    history_args = adapter._arguments(tools["get_trading_history_positions"], "history")
+    assert "symbol" not in history_args
+    assert "date_from" in history_args
+    assert "date_to" in history_args

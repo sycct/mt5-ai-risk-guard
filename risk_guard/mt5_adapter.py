@@ -75,7 +75,11 @@ class Mt5Adapter:
         args: dict[str, Any] = {}
         for name in properties:
             lower = name.lower()
-            if "symbol" in lower: args[name] = self.symbol
+            # Account risk must include every symbol. Filtering positions, orders,
+            # or history to XAUUSD can hide exposure while account profit remains
+            # account-wide, producing a false empty-account result.
+            if capability == "symbol_info" and "symbol" in lower:
+                args[name] = self.symbol
             elif capability == "history" and lower in ("from", "date_from", "start", "start_date"):
                 args[name] = datetime.now().astimezone().date().isoformat()
             elif capability == "history" and lower in ("to", "date_to", "end", "end_date"):
