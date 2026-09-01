@@ -50,15 +50,22 @@ class Mt5Adapter:
             "history": registry.find_history_tool(),
         }
         raw: dict[str, Any] = {}
+        called: dict[str, Any] = {}
         missing = [name for name, tool in capabilities.items() if not tool]
         for capability, tool in capabilities.items():
             if not tool: continue
             args = self._arguments(next(t for t in tools if t.name == tool), capability)
-            try: raw[capability] = _unwrap(await self.client.call_tool(tool, args))
+            try:
+                if tool not in called:
+                    called[tool] = _unwrap(await self.client.call_tool(tool, args))
+                raw[capability] = called[tool]
             except Exception as exc:
                 logger.warning("读取 MCP 能力 %s 失败: %s", capability, exc)
                 missing.append(capability)
-        return Mt5Snapshot(timestamp=datetime.now(timezone.utc), account=self._account(raw.get("account")),
+        account = self._account(raw.get("account"))
+        if account.balance is None or account.equity is None:
+            missing.append("account_data")
+        return Mt5Snapshot(timestamp=datetime.now(timezone.utc), account=account,
                            symbol=self._symbol(raw.get("symbol_info")), positions=self._positions(raw.get("positions")),
                            pending_orders=self._orders(raw.get("orders")), history=self._history(raw.get("history")),
                            missing_capabilities=sorted(set(missing)))
@@ -101,6 +108,10 @@ class Mt5Adapter:
     def _symbol(self, raw: Any) -> SymbolInfo | None:
         if raw is None: return None
         d = raw if isinstance(raw, dict) else {}
+        items = _items(raw, ("symbols", "data"))
+        if items:
+            d = next((item for item in items
+                      if str(_pick(item, "symbol", "name", default="")).upper() == self.symbol.upper()), items[0])
         for key in ("symbol_info", "tick", "data", "result"):
             if isinstance(d.get(key), dict): d = d[key]; break
         bid, ask = _pick(d, "bid"), _pick(d, "ask")
@@ -116,7 +127,7 @@ class Mt5Adapter:
     def _history(self, raw: Any) -> HistorySummary | None:
         if raw is None: return None
         d = raw if isinstance(raw, dict) else {}
-        deals = _items(raw, ("deals", "history", "trades", "data"))
+        deals = _items(raw, ("deals", "positions", "orders", "history", "trades", "data"))
         profits = [float(_pick(x, "profit", default=0) or 0) for x in deals]
         return HistorySummary(today_closed_profit=_pick(d, "today_closed_profit", default=sum(profits)),
             today_gross_profit=_pick(d, "today_gross_profit", default=sum(x for x in profits if x > 0)),

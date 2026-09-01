@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class RiskLevel(IntEnum):
+    DATA_UNAVAILABLE = -1
     OK = 0
     CAUTION = 1
     WARNING = 2
@@ -161,6 +162,10 @@ class AiRiskReport(BaseModel):
     @classmethod
     def parse_level_name(cls, value: Any) -> Any:
         if isinstance(value, str):
+            aliases = {"LOW": RiskLevel.OK, "MEDIUM": RiskLevel.CAUTION,
+                       "HIGH": RiskLevel.WARNING, "CRITICAL": RiskLevel.DANGER}
+            if value.upper() in aliases:
+                return aliases[value.upper()]
             try:
                 return RiskLevel[value.upper()]
             except KeyError:

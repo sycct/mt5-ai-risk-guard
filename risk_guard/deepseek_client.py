@@ -54,9 +54,11 @@ class DeepSeekRiskAnalyst:
 def hard_rule_fallback(assessment: RiskAssessment, reason: str | None = None) -> AiRiskReport:
     risks = [hit.message for hit in assessment.hard_rule_hits if hit.level == assessment.level]
     summary = f"硬规则判定当前风险等级为 {assessment.level.name}。"
+    if assessment.level is RiskLevel.DATA_UNAVAILABLE:
+        summary = "关键 MT5 账户数据不可用，无法得出可靠风险等级。"
+        risks = ["账户余额、净值或持仓能力缺失"]
     if reason: summary += " AI 分析暂不可用，已使用确定性规则报告。"
     return AiRiskReport(risk_level=assessment.level, summary=summary,
         main_risks=risks or ["当前硬规则未触发"], recommended_actions=ACTIONS[assessment.level],
         do_not_do=["不要无限加仓", "不要仅凭 AI 输出执行交易动作"],
         reasoning_brief="风险等级取所有已触发硬阈值中的最高等级；缺失数据不作臆测。")
-

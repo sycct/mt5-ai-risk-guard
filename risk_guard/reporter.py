@@ -9,7 +9,7 @@ from rich.table import Table
 
 from .models import AiRiskReport, Mt5Snapshot, RiskAssessment, RiskLevel
 
-COLORS = {RiskLevel.OK: "green", RiskLevel.CAUTION: "yellow", RiskLevel.WARNING: "bright_yellow",
+COLORS = {RiskLevel.DATA_UNAVAILABLE: "bold magenta", RiskLevel.OK: "green", RiskLevel.CAUTION: "yellow", RiskLevel.WARNING: "bright_yellow",
           RiskLevel.DANGER: "red", RiskLevel.EMERGENCY: "bold white on red"}
 
 

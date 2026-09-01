@@ -19,6 +19,7 @@ DEFAULT_THRESHOLDS = {
 }
 
 ACTIONS = {
+    RiskLevel.DATA_UNAVAILABLE: ["检查 MT5 MCP 数据映射和连接", "数据恢复前不要依据本次结果交易"],
     RiskLevel.OK: ["继续监控"],
     RiskLevel.CAUTION: ["提醒观察", "不建议提高 EA 参数"],
     RiskLevel.WARNING: ["建议停止 EA 新开仓", "建议删除挂单", "禁止继续加大 Maxlot / Totals"],
@@ -27,7 +28,11 @@ ACTIONS = {
 }
 
 
-def evaluate_rules(metrics: RiskMetrics, thresholds: dict[RiskLevel, Thresholds] | None = None) -> RiskAssessment:
+def evaluate_rules(metrics: RiskMetrics, thresholds: dict[RiskLevel, Thresholds] | None = None,
+                   unavailable_reasons: list[str] | None = None) -> RiskAssessment:
+    if metrics.balance is None or metrics.equity is None or unavailable_reasons:
+        return RiskAssessment(level=RiskLevel.DATA_UNAVAILABLE, metrics=metrics,
+                              recommended_actions=ACTIONS[RiskLevel.DATA_UNAVAILABLE])
     table = thresholds or DEFAULT_THRESHOLDS
     hits: list[RuleHit] = []
     for level, threshold in table.items():

@@ -27,3 +27,7 @@ def test_each_level(kwargs, expected): assert evaluate_rules(metrics(**kwargs)).
     ({"margin_level": 2000}, RiskLevel.WARNING), ({"equity_drawdown_percent": 3}, RiskLevel.CAUTION)])
 def test_each_metric_can_trigger(kwargs, expected): assert evaluate_rules(metrics(**kwargs)).level == expected
 
+
+def test_missing_critical_data_never_reports_ok():
+    result = evaluate_rules(metrics(balance=None, equity=None), unavailable_reasons=["account_data"])
+    assert result.level is RiskLevel.DATA_UNAVAILABLE

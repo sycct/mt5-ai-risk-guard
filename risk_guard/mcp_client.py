@@ -106,6 +106,18 @@ class Mt5McpClient:
 
 
 class ToolRegistry:
+    PREFERRED_NAMES = {
+        "account": ("get_trading_account_info", "get_account_info", "account_info"),
+        "positions": ("get_trading_open_positions", "list_open_positions", "get_open_positions"),
+        # Some MT5 MCP servers return pending orders together with open positions.
+        "orders": ("get_trading_open_positions", "list_pending_orders", "get_pending_orders"),
+        "symbol_info": ("get_marketwatch_symbols", "get_symbol_tick", "get_symbol_info"),
+        "history": ("get_trading_history_positions", "deal_history", "get_deal_history"),
+    }
+    MUTATING_PREFIXES = (
+        "add_", "create_", "delete_", "remove_", "replace_", "send_", "trade_",
+        "write_", "chart_open", "chart_close", "chart_apply", "tester_run", "tester_stop",
+    )
     KEYWORDS = {
         "account": (("account", "balance", "equity", "margin"), ("trade", "order", "position")),
         "positions": (("position", "positions", "open trades"), ("history", "close")),
@@ -118,12 +130,22 @@ class ToolRegistry:
         self.tools = tools
 
     def _find(self, capability: str) -> str | None:
+        by_name = {tool.name.lower(): tool.name for tool in self.tools}
+        for preferred in self.PREFERRED_NAMES[capability]:
+            if preferred in by_name:
+                return by_name[preferred]
+
         positives, negatives = self.KEYWORDS[capability]
         best: tuple[int, str] | None = None
         for tool in self.tools:
-            haystack = f"{tool.name} {tool.description} {json.dumps(tool.input_schema)}".lower()
-            score = sum(3 if word in tool.name.lower() else 1 for word in positives if word in haystack)
-            score -= sum(2 for word in negatives if word in haystack)
+            name = tool.name.lower()
+            if name.startswith(self.MUTATING_PREFIXES):
+                continue
+            # Capability discovery must be driven by the tool name. Descriptions often
+            # contain phrases such as "never cancels orders", which caused mutating
+            # tools to be selected as read-only account/order readers.
+            score = sum(3 for word in positives if word in name)
+            score -= sum(2 for word in negatives if word in name)
             if score > 0 and (best is None or score > best[0]):
                 best = (score, tool.name)
         return best[1] if best else None
@@ -133,4 +155,3 @@ class ToolRegistry:
     def find_orders_tool(self) -> str | None: return self._find("orders")
     def find_symbol_info_tool(self) -> str | None: return self._find("symbol_info")
     def find_history_tool(self) -> str | None: return self._find("history")
-
