@@ -11,6 +11,7 @@ from .risk_rules import ACTIONS
 logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = """你是 MT5 黄金网格 EA 风控分析助手。
+所有面向用户的文本必须使用简体中文，不得使用英文句子；MT5、EA、USC 等标识符可以保留原样。
 你的任务是根据账户、持仓、挂单、点差、保证金比例、总手数、净手数、浮亏和历史交易情况，判断当前爆仓风险。
 你不能承诺盈利。你不能建议继续无限加仓。
 如果出现单边行情、净手数过大、保证金比例下降、浮亏扩大，应优先建议停止 EA、删除挂单、降低仓位或人工处理。
@@ -24,14 +25,19 @@ SYSTEM_PROMPT = """你是 MT5 黄金网格 EA 风控分析助手。
 字段必须是 risk_level、summary、main_risks、recommended_actions、do_not_do、reasoning_brief。"""
 
 NUMERIC_CLAIM = re.compile(r"\d|[零〇一二两三四五六七八九十百千万亿]")
+CHINESE_TEXT = re.compile(r"[\u4e00-\u9fff]")
 FORBIDDEN_AI_ACTIONS = ("反向对冲", "对冲", "加仓", "补仓", "补单", "平仓", "平掉", "减仓")
 
 
 def validate_ai_narrative(report: AiRiskReport) -> None:
-    narrative = " ".join([report.summary, *report.main_risks, report.reasoning_brief])
+    retained_text = [report.summary, *report.main_risks, *report.do_not_do, report.reasoning_brief]
+    if any(not CHINESE_TEXT.search(text) for text in retained_text):
+        raise InvalidAiResponse("AI narrative must use Simplified Chinese")
+    narrative = " ".join(retained_text)
     if NUMERIC_CLAIM.search(narrative):
         raise InvalidAiResponse("AI narrative must not repeat or calculate numeric values")
-    if any(action in narrative for action in FORBIDDEN_AI_ACTIONS):
+    advisory_text = " ".join([report.summary, *report.main_risks, report.reasoning_brief])
+    if any(action in advisory_text for action in FORBIDDEN_AI_ACTIONS):
         raise InvalidAiResponse("AI narrative contains an unapproved trading action")
 
 

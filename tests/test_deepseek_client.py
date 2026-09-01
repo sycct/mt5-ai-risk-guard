@@ -4,19 +4,28 @@ from risk_guard.deepseek_client import InvalidAiResponse, validate_ai_narrative
 from risk_guard.models import AiRiskReport, RiskLevel
 
 
-def report(summary="账户风险较低", main_risks=None, reasoning="基于硬规则和完整账户数据"):
+def report(summary="账户风险较低", main_risks=None, do_not_do=None,
+           reasoning_brief="基于硬规则和完整账户数据"):
     return AiRiskReport(
         risk_level=RiskLevel.OK,
         summary=summary,
         main_risks=main_risks or ["当前未触发硬规则风险"],
         recommended_actions=["继续监控"],
-        do_not_do=["不要无限加仓"],
-        reasoning_brief=reasoning,
+        do_not_do=do_not_do or ["不要无限加仓"],
+        reasoning_brief=reasoning_brief,
     )
 
 
 def test_qualitative_ai_narrative_is_accepted():
     validate_ai_narrative(report())
+
+
+@pytest.mark.parametrize("field", ["summary", "main_risks", "do_not_do", "reasoning_brief"])
+def test_english_ai_narrative_is_rejected(field):
+    value = "Overall account risk is low."
+    kwargs = {field: [value] if field in {"main_risks", "do_not_do"} else value}
+    with pytest.raises(InvalidAiResponse, match="Simplified Chinese"):
+        validate_ai_narrative(report(**kwargs))
 
 
 @pytest.mark.parametrize("summary", [
