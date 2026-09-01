@@ -81,7 +81,7 @@ async def _check_once(quiet: bool = False):
         return None
     critical_missing = [name for name in snapshot.missing_capabilities
                         if name in ("account", "account_data", "positions",
-                                    "positions_volume_data", "margin_level_data")]
+                                    "positions_volume_data", "positions_type_data", "margin_level_data")]
     assessment = evaluate_rules(calculate_metrics(snapshot, settings.ea_magic), _thresholds(settings),
                                 critical_missing)
     if assessment.metrics.data_quality_issues:

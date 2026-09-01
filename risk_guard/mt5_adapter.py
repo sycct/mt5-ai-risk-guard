@@ -58,6 +58,13 @@ class Mt5Adapter:
         for capability, tool in capabilities.items():
             if not tool: continue
             args = self._arguments(next(t for t in tools if t.name == tool), capability)
+            if capability == "symbol_info":
+                position_items = _items(raw.get("positions"), ("positions", "data"))
+                observed_symbol = _pick(position_items[0], "symbol") if position_items else None
+                if observed_symbol:
+                    for argument_name in args:
+                        if "symbol" in argument_name.lower():
+                            args[argument_name] = observed_symbol
             try:
                 if tool not in called:
                     called[tool] = _unwrap(await self.client.call_tool(tool, args))
@@ -71,6 +78,8 @@ class Mt5Adapter:
         positions = self._positions(raw.get("positions"))
         if positions and not any(position.volume > 0 for position in positions):
             missing.append("positions_volume_data")
+        if any(position.type == "unknown" for position in positions):
+            missing.append("positions_type_data")
         if positions and account.margin_level is None:
             missing.append("margin_level_data")
         symbol = self._symbol(raw.get("symbol_info"))
@@ -91,9 +100,9 @@ class Mt5Adapter:
             # account-wide, producing a false empty-account result.
             if capability == "symbol_info" and "symbol" in lower:
                 args[name] = self.symbol
-            elif capability == "history" and lower in ("from", "date_from", "start", "start_date"):
+            elif capability == "history" and lower in ("from", "date_from", "datetime_from", "start", "start_date"):
                 args[name] = datetime.now().astimezone().date().isoformat()
-            elif capability == "history" and lower in ("to", "date_to", "end", "end_date"):
+            elif capability == "history" and lower in ("to", "date_to", "datetime_to", "end", "end_date"):
                 args[name] = datetime.now().astimezone().isoformat()
         return args
 
@@ -101,25 +110,31 @@ class Mt5Adapter:
         d = raw if isinstance(raw, dict) else {}
         for key in ("account", "account_info", "data", "result"):
             if isinstance(d.get(key), dict): d = d[key]; break
+        equity, margin = _pick(d, "equity"), _pick(d, "margin")
+        margin_level = _pick(d, "margin_level", "margin_level_percent")
+        if margin_level is None and equity is not None and margin is not None and margin > 0:
+            margin_level = equity / margin * 100
         return Account(login=_pick(d, "login", "account"), server=_pick(d, "server"), balance=_pick(d, "balance"),
-                       equity=_pick(d, "equity"), credit=_pick(d, "credit"), profit=_pick(d, "profit"),
-                       commission=_pick(d, "commission"), margin=_pick(d, "margin"),
-                       free_margin=_pick(d, "free_margin", "margin_free"),
-                       margin_level=_pick(d, "margin_level", "margin_level_percent"), currency=_pick(d, "currency"))
+                       equity=equity, credit=_pick(d, "credit"), profit=_pick(d, "profit"),
+                       commission=_pick(d, "commission", "commissions"), margin=margin,
+                       free_margin=_pick(d, "free_margin", "margin_free"), margin_level=margin_level,
+                       currency=_pick(d, "currency"))
 
     def _positions(self, raw: Any) -> list[Position]:
-        return [Position(ticket=_pick(x, "ticket", "id"), symbol=_pick(x, "symbol"), type=_pick(x, "type", "side"),
+        return [Position(ticket=_pick(x, "ticket", "id", "position_id"), symbol=_pick(x, "symbol"),
+            type=_pick(x, "type", "side", "action", "position_type", "direction"),
             volume=_pick(x, "volume", "lots", "lot", "volume_current", "current_volume", "volume_lots", "size", default=0) or 0,
             open_price=_pick(x, "open_price", "price_open"),
-            current_price=_pick(x, "current_price", "price_current"), profit=_pick(x, "profit", default=0) or 0,
-            swap=_pick(x, "swap"), commission=_pick(x, "commission"), magic=_pick(x, "magic"),
-            comment=_pick(x, "comment"), open_time=_pick(x, "open_time", "time"))
+            current_price=_pick(x, "current_price", "price_current", "price_last"), profit=_pick(x, "profit", default=0) or 0,
+            swap=_pick(x, "swap", "swaps"), commission=_pick(x, "commission", "commissions"),
+            magic=_pick(x, "magic", "magic_number"), comment=_pick(x, "comment"),
+            open_time=_pick(x, "open_time", "create_time", "time"))
             for x in _items(raw, ("positions", "data"))]
 
     def _orders(self, raw: Any) -> list[PendingOrder]:
-        return [PendingOrder(ticket=_pick(x, "ticket", "id"), symbol=_pick(x, "symbol"),
+        return [PendingOrder(ticket=_pick(x, "ticket", "id", "order_id"), symbol=_pick(x, "symbol"),
             type=str(_pick(x, "type", "side", default="unknown")), volume=_pick(x, "volume", "lots", "volume_initial", default=0) or 0,
-            price=_pick(x, "price", "price_open"), magic=_pick(x, "magic"), comment=_pick(x, "comment"),
+            price=_pick(x, "price", "price_open", "price_order"), magic=_pick(x, "magic", "magic_number"), comment=_pick(x, "comment"),
             create_time=_pick(x, "create_time", "time_setup", "time")) for x in _items(raw, ("orders", "pending_orders", "data"))]
 
     def _symbol(self, raw: Any) -> SymbolInfo | None:

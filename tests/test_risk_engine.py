@@ -36,3 +36,21 @@ def test_missing_account_profit_is_reported_when_equity_differs():
     m = calculate_metrics(Mt5Snapshot(account=Account(balance=50000, equity=49990)))
     assert m.reconciliation_error is None
     assert m.data_quality_issues == ["account_profit_missing_for_equity_reconciliation"]
+
+
+def test_small_profit_difference_between_sequential_calls_is_tolerated():
+    snapshot = Mt5Snapshot(
+        account=Account(balance=50000, equity=49931.65, profit=-68.35),
+        positions=[Position(type="buy", volume=.1, profit=-70.35)],
+    )
+    assert calculate_metrics(snapshot).data_quality_issues == []
+
+
+def test_total_lots_includes_unknown_direction_for_safety():
+    snapshot = Mt5Snapshot(
+        account=Account(balance=50000, equity=50000),
+        positions=[Position(type="unknown", volume=.2)],
+    )
+    m = calculate_metrics(snapshot)
+    assert m.total_lots == .2
+    assert m.buy_lots == m.sell_lots == 0

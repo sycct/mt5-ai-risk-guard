@@ -22,7 +22,10 @@ def calculate_metrics(snapshot: Mt5Snapshot, ea_magic: int = 9527) -> RiskMetric
             reconciliation_error = equity - expected_equity
             if abs(reconciliation_error) > 0.01:
                 data_quality_issues.append("equity_reconciliation_mismatch")
-            if abs(account_profit - positions_profit) > 0.01:
+            # Account and positions are separate MCP calls, so fast markets can
+            # produce a small timing difference even when both responses are valid.
+            profit_tolerance = max(1.0, abs(account_profit) * 0.05)
+            if abs(account_profit - positions_profit) > profit_tolerance:
                 data_quality_issues.append("account_and_positions_profit_mismatch")
     dd_money = max(0.0, balance - equity) if balance is not None and equity is not None else None
     dd_percent = dd_money / balance * 100 if dd_money is not None and balance and balance > 0 else None
@@ -39,7 +42,8 @@ def calculate_metrics(snapshot: Mt5Snapshot, ea_magic: int = 9527) -> RiskMetric
         equity_drawdown_money=dd_money, equity_drawdown_percent=dd_percent,
         margin_level=snapshot.account.margin_level,
         spread=snapshot.symbol.spread if snapshot.symbol else None,
-        buy_lots=buy_lots, sell_lots=sell_lots, total_lots=round(buy_lots + sell_lots, 8),
+        buy_lots=buy_lots, sell_lots=sell_lots,
+        total_lots=round(sum(position.volume for position in snapshot.positions), 8),
         net_lots=round(abs(buy_lots - sell_lots), 8), buy_positions_count=len(buys),
         sell_positions_count=len(sells), total_positions_count=len(snapshot.positions),
         pending_orders_count=len(snapshot.pending_orders), buy_profit=buy_profit,
