@@ -17,7 +17,7 @@ def render_report(console: Console, snapshot: Mt5Snapshot, assessment: RiskAsses
     m, color = assessment.metrics, COLORS[assessment.level]
     console.print(Panel(f"[bold]{assessment.level.name}[/bold]\n{report.summary}", title="MT5 风控", style=color))
     table = Table("指标", "当前值")
-    for name, value in (("余额", m.balance), ("净值", m.equity), ("信用额", m.credit),
+    for name, value in (("账户币种", snapshot.account.currency), ("余额", m.balance), ("净值", m.equity), ("信用额", m.credit),
                         ("账户利润", m.account_profit), ("持仓浮动盈亏", m.positions_floating_profit),
                         ("净值-余额", m.equity_balance_gap), ("净值对账误差", m.reconciliation_error),
                         ("净值回撤 %", m.equity_drawdown_percent), ("保证金比例", m.margin_level),

@@ -18,6 +18,7 @@ class JsonlStorage:
     def save_snapshot(self, snapshot: Mt5Snapshot, assessment: RiskAssessment, report: AiRiskReport) -> None:
         m = assessment.metrics
         record = {"timestamp": snapshot.timestamp.isoformat(), "account": snapshot.account.login,
+            "account_currency": snapshot.account.currency,
             "symbol": snapshot.symbol.symbol if snapshot.symbol else None, "balance": m.balance,
             "equity": m.equity, "credit": m.credit, "account_profit": m.account_profit,
             "account_commission": m.account_commission,

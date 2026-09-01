@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 
 from openai import AsyncOpenAI
 from pydantic import ValidationError
@@ -17,7 +18,21 @@ SYSTEM_PROMPT = """你是 MT5 黄金网格 EA 风控分析助手。
 不得猜测余额与净值差额来自隔夜利息、手续费、信用额或账户调整；只能引用输入中实际存在的字段。
 如果 data_quality_issues 非空，必须明确指出数据无法完全对账，且不得虚构原因。
 不得使用“可能来自”“可能是”“推测”“也许”等措辞列举未经输入证实的原因，也不得建议检查某个具体原因，除非输入字段直接支持该原因。
+关键数值由程序单独展示。summary、main_risks、recommended_actions、do_not_do、reasoning_brief 中不得重复、换算、计算或书写任何数字、百分比、金额、手数、价格、点数和交易笔数。
+必须使用输入中的 account_currency 原样描述币种，不得将 USC、USCents 或其他币种改称为美元。
+不得提出反向对冲、加仓、补仓、具体平仓、具体减仓或调整订单价格等交易策略。recommended_actions 将由确定性规则提供。
 字段必须是 risk_level、summary、main_risks、recommended_actions、do_not_do、reasoning_brief。"""
+
+NUMERIC_CLAIM = re.compile(r"\d|[零〇一二两三四五六七八九十百千万亿]")
+FORBIDDEN_AI_ACTIONS = ("反向对冲", "对冲", "加仓", "补仓", "补单", "平仓", "平掉", "减仓")
+
+
+def validate_ai_narrative(report: AiRiskReport) -> None:
+    narrative = " ".join([report.summary, *report.main_risks, report.reasoning_brief])
+    if NUMERIC_CLAIM.search(narrative):
+        raise InvalidAiResponse("AI narrative must not repeat or calculate numeric values")
+    if any(action in narrative for action in FORBIDDEN_AI_ACTIONS):
+        raise InvalidAiResponse("AI narrative contains an unapproved trading action")
 
 
 class InvalidAiResponse(RuntimeError): pass
@@ -31,6 +46,7 @@ class DeepSeekRiskAnalyst:
     async def analyze(self, snapshot: Mt5Snapshot, assessment: RiskAssessment) -> AiRiskReport:
         payload = {
             "hard_rule_level": assessment.level.name,
+            "account_currency": snapshot.account.currency,
             "metrics": assessment.metrics.model_dump(mode="json"),
             "hard_rule_hits": [x.model_dump(mode="json") for x in assessment.hard_rule_hits],
             "history": snapshot.history.model_dump(mode="json") if snapshot.history else None,
@@ -45,9 +61,13 @@ class DeepSeekRiskAnalyst:
         if not content: raise InvalidAiResponse("DeepSeek returned empty content")
         try: report = AiRiskReport.model_validate_json(content)
         except (ValidationError, json.JSONDecodeError) as exc: raise InvalidAiResponse(str(exc)) from exc
+        validate_ai_narrative(report)
         if report.risk_level < assessment.level:
             report.risk_level = assessment.level
             report.summary = f"硬规则等级为 {assessment.level.name}，不得由 AI 下调。{report.summary}"
+        # AI explains risk, while executable-style advice always comes from the
+        # deterministic policy table for the final risk level.
+        report.recommended_actions = ACTIONS[report.risk_level]
         return report
 
 
