@@ -26,7 +26,13 @@ SYSTEM_PROMPT = """你是 MT5 黄金网格 EA 风控分析助手。
 
 SYSTEM_PROMPT += " risk_level 必须严格使用 DATA_UNAVAILABLE、OK、CAUTION、WARNING、DANGER、EMERGENCY 之一，不得翻译为中文。"
 
-NUMERIC_CLAIM = re.compile(r"\d|[零〇一二两三四五六七八九十百千万亿]")
+# Reject actual numeric claims without treating ordinary words such as
+# "进一步" or "一致" as numbers merely because they contain "一".
+NUMERIC_CLAIM = re.compile(
+    r"\d"
+    r"|[零〇一二两三四五六七八九]*(?:十|百|千|万|亿)[零〇一二两三四五六七八九十百千万亿]*"
+    r"|[零〇一二两三四五六七八九](?=个|笔|手|点|元|美分|百分比|倍|成|级|档|次|张|单|仓)"
+)
 CHINESE_TEXT = re.compile(r"[\u4e00-\u9fff]")
 FORBIDDEN_AI_ACTIONS = ("反向对冲", "对冲", "加仓", "补仓", "补单", "平仓", "平掉", "减仓")
 

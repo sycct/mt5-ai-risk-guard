@@ -20,6 +20,10 @@ def test_qualitative_ai_narrative_is_accepted():
     validate_ai_narrative(report())
 
 
+def test_chinese_words_containing_one_are_not_treated_as_numbers():
+    validate_ai_narrative(report(summary="建议进一步观察并保持判断一致"))
+
+
 @pytest.mark.parametrize("field", ["summary", "main_risks", "do_not_do", "reasoning_brief"])
 def test_english_ai_narrative_is_rejected(field):
     value = "Overall account risk is low."
