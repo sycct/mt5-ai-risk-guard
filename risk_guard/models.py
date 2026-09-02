@@ -172,12 +172,22 @@ class AiRiskReport(BaseModel):
     @classmethod
     def parse_level_name(cls, value: Any) -> Any:
         if isinstance(value, str):
-            aliases = {"LOW": RiskLevel.OK, "MEDIUM": RiskLevel.CAUTION,
-                       "HIGH": RiskLevel.WARNING, "CRITICAL": RiskLevel.DANGER}
-            if value.upper() in aliases:
-                return aliases[value.upper()]
+            normalized = value.strip().upper()
+            aliases = {
+                "LOW": RiskLevel.OK, "MEDIUM": RiskLevel.CAUTION,
+                "HIGH": RiskLevel.WARNING, "CRITICAL": RiskLevel.DANGER,
+                "正常": RiskLevel.OK, "低风险": RiskLevel.OK,
+                "注意": RiskLevel.CAUTION, "谨慎": RiskLevel.CAUTION,
+                "警戒": RiskLevel.CAUTION,
+                "警告": RiskLevel.WARNING, "较高风险": RiskLevel.WARNING,
+                "危险": RiskLevel.DANGER, "高风险": RiskLevel.DANGER,
+                "紧急": RiskLevel.EMERGENCY, "极高风险": RiskLevel.EMERGENCY,
+                "数据不可用": RiskLevel.DATA_UNAVAILABLE,
+            }
+            if normalized in aliases:
+                return aliases[normalized]
             try:
-                return RiskLevel[value.upper()]
+                return RiskLevel[normalized]
             except KeyError:
                 return value
         return value

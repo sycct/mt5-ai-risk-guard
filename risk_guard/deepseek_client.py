@@ -24,6 +24,8 @@ SYSTEM_PROMPT = """你是 MT5 黄金网格 EA 风控分析助手。
 不得提出反向对冲、加仓、补仓、具体平仓、具体减仓或调整订单价格等交易策略。recommended_actions 将由确定性规则提供。
 字段必须是 risk_level、summary、main_risks、recommended_actions、do_not_do、reasoning_brief。"""
 
+SYSTEM_PROMPT += " risk_level 必须严格使用 DATA_UNAVAILABLE、OK、CAUTION、WARNING、DANGER、EMERGENCY 之一，不得翻译为中文。"
+
 NUMERIC_CLAIM = re.compile(r"\d|[零〇一二两三四五六七八九十百千万亿]")
 CHINESE_TEXT = re.compile(r"[\u4e00-\u9fff]")
 FORBIDDEN_AI_ACTIONS = ("反向对冲", "对冲", "加仓", "补仓", "补单", "平仓", "平掉", "减仓")

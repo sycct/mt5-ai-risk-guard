@@ -16,3 +16,9 @@ def test_ai_low_alias_maps_to_ok():
     report = AiRiskReport(risk_level="low", summary="ok", main_risks=[],
                           recommended_actions=[], do_not_do=[], reasoning_brief="ok")
     assert report.risk_level is RiskLevel.OK
+
+
+def test_ai_chinese_caution_alias_maps_to_caution():
+    report = AiRiskReport(risk_level="警戒", summary="谨慎观察", main_risks=[],
+                          recommended_actions=[], do_not_do=[], reasoning_brief="规则触发")
+    assert report.risk_level is RiskLevel.CAUTION
