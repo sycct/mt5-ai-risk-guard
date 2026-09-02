@@ -30,6 +30,8 @@ class Settings(BaseSettings):
     allow_delete_orders: bool = False
     allow_pause_ea: bool = False
     max_allowed_actions_per_hour: int = Field(default=0, ge=0)
+    shadow_mode_enabled: bool = True
+    shadow_confirmation_checks: int = Field(default=2, ge=1)
 
     caution_drawdown: float = 3
     warning_drawdown: float = 5
@@ -55,4 +57,3 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
-

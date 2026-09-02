@@ -16,6 +16,7 @@ from .mt5_adapter import Mt5Adapter
 from .reporter import COLORS, render_report, write_daily_report
 from .risk_engine import calculate_metrics
 from .risk_rules import DEFAULT_THRESHOLDS, Thresholds, evaluate_rules
+from .shadow import evaluate_shadow_actions
 from .storage import JsonlStorage
 
 app = typer.Typer(help="MT5 MCP + DeepSeek 只读风控监控系统", no_args_is_help=True)
@@ -84,6 +85,23 @@ async def _check_once(quiet: bool = False):
                                     "positions_volume_data", "positions_type_data", "margin_level_data")]
     assessment = evaluate_rules(calculate_metrics(snapshot, settings.ea_magic), _thresholds(settings),
                                 critical_missing)
+    shadow_decision = None
+    if settings.shadow_mode_enabled:
+        confirmation_count = 0
+        if assessment.level >= RiskLevel.WARNING:
+            confirmation_count = storage.consecutive_shadow_high_risk() + 1
+        shadow_decision = evaluate_shadow_actions(
+            snapshot, assessment, settings.ea_magic, confirmation_count,
+            settings.shadow_confirmation_checks,
+        )
+        storage.save_shadow_decision(shadow_decision)
+        storage.audit("shadow_decision", {
+            "risk_level": shadow_decision.risk_level.name,
+            "eligible": shadow_decision.eligible,
+            "proposed_actions": [action.action for action in shadow_decision.proposed_actions],
+            "blocked_reasons": shadow_decision.blocked_reasons,
+            "confirmation_count": shadow_decision.confirmation_count,
+        })
     if assessment.metrics.data_quality_issues:
         logging.warning("MT5 数据无法完全对账: %s", ", ".join(assessment.metrics.data_quality_issues))
         storage.audit("data_quality_warning", {"issues": assessment.metrics.data_quality_issues})
@@ -97,7 +115,15 @@ async def _check_once(quiet: bool = False):
         logging.info("未配置 DEEPSEEK_API_KEY，使用硬规则报告")
     storage.save_snapshot(snapshot, assessment, report)
     storage.audit("risk_check", {"risk_level": assessment.level.name, "read_only": True})
-    if not quiet: render_report(console, snapshot, assessment, report)
+    if not quiet:
+        render_report(console, snapshot, assessment, report)
+        if shadow_decision:
+            actions = ", ".join(action.action for action in shadow_decision.proposed_actions) or "none"
+            blockers = ", ".join(shadow_decision.blocked_reasons) or "none"
+            console.print(f"[cyan]影子决策：eligible={shadow_decision.eligible}; "
+                          f"actions={actions}; blockers={blockers}; "
+                          f"confirmations={shadow_decision.confirmation_count}/"
+                          f"{shadow_decision.confirmation_required}[/cyan]")
     return assessment
 
 

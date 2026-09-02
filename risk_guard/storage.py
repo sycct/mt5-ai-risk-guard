@@ -3,7 +3,7 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
-from .models import AiRiskReport, Mt5Snapshot, RiskAssessment
+from .models import AiRiskReport, Mt5Snapshot, RiskAssessment, RiskLevel, ShadowDecision
 
 
 class JsonlStorage:
@@ -47,6 +47,27 @@ class JsonlStorage:
     def audit(self, event: str, details: dict[str, Any]) -> None:
         self._append("audit.jsonl", {"timestamp": datetime.now().astimezone().isoformat(),
                                      "event": event, "details": details})
+
+    def save_shadow_decision(self, decision: ShadowDecision) -> None:
+        self._append("shadow_decisions.jsonl", decision.model_dump(mode="json"))
+
+    def consecutive_shadow_high_risk(self) -> int:
+        path = self.log_dir / "shadow_decisions.jsonl"
+        if not path.exists():
+            return 0
+        count = 0
+        for line in reversed(path.read_text(encoding="utf-8").splitlines()):
+            try:
+                item = json.loads(line)
+                level = RiskLevel[item["risk_level"]] if isinstance(item["risk_level"], str) \
+                    else RiskLevel(item["risk_level"])
+                blocking = set(item.get("blocked_reasons", [])) - {"confirmation_pending"}
+                if level < RiskLevel.WARNING or blocking:
+                    break
+                count += 1
+            except (ValueError, KeyError, json.JSONDecodeError):
+                break
+        return count
 
     def records_for(self, target: date) -> list[dict[str, Any]]:
         path = self.log_dir / "risk_snapshots.jsonl"

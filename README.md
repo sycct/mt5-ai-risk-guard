@@ -54,6 +54,7 @@ python -m risk_guard report --date 2026-08-27
 - `logs/risk_snapshots.jsonl`：每次成功检查
 - `logs/alerts.jsonl`：WARNING 及以上告警
 - `logs/audit.jsonl`：检查与故障审计
+- `logs/shadow_decisions.jsonl`：影子模式拟执行动作、连续确认次数和安全阻断原因
 - `logs/risk_guard.log`：运行日志
 
 认证值在 MCP debug 日志中会脱敏；仍不要把原始密钥放进工具参数、注释或提交记录。
@@ -67,6 +68,19 @@ python -m risk_guard report --date 2026-08-27
 DeepSeek 只负责定性解释，不负责复述或计算账户数值，也不能提出对冲、加仓、补仓、具体平仓或减仓策略。风险等级不能低于硬规则等级；关键指标和账户币种由程序直接展示，建议采用与风险等级对应的确定性规则。无 Key、网络失败、包含数字或响应无效时立即使用硬规则报告，不重复调用。缺失的 MCP 能力/字段会明确列出并保留为 `None`，不会编造。
 
 所有交易开关默认关闭，且第一阶段若设置 `TRADE_ACTIONS_ENABLED=true` 会直接拒绝启动。自动平仓可能在滑点、点差扩大、网络抖动或错误映射工具时放大损失，也可能破坏对冲结构，因此不应作为默认行为；高风险场景应先由人核对账户和行情。
+
+## 影子风控模式
+
+影子模式默认启用，但始终只记录决策，不调用下单、平仓、删单或 EA 控制工具。可通过以下配置调整：
+
+```env
+SHADOW_MODE_ENABLED=true
+SHADOW_CONFIRMATION_CHECKS=2
+```
+
+当硬规则连续达到 `WARNING` 时，系统记录“通知人工”和“暂停对应 Magic 的 EA 新开仓”候选动作；达到 `DANGER` 且存在对应 EA 挂单时，额外记录“删除 EA 挂单”候选动作。当前不会生成自动平仓动作。数据缺失、对账异常或找不到对应 EA 敞口时，动作会被安全门阻断并记录原因。
+
+`eligible=true` 仅表示该影子决策满足未来策略的连续确认条件，不代表动作已执行。项目中仍不存在任何交易动作执行器，`TRADE_ACTIONS_ENABLED=true` 仍会拒绝启动。
 
 ## 测试与无 MT5 演示
 

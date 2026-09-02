@@ -160,6 +160,25 @@ class RiskAssessment(BaseModel):
     recommended_actions: list[str] = Field(default_factory=list)
 
 
+class ShadowAction(BaseModel):
+    action: Literal["notify_human", "pause_ea_new_entries", "delete_ea_pending_orders"]
+    target: str
+    target_count: int | None = None
+    rationale: str
+
+
+class ShadowDecision(BaseModel):
+    timestamp: datetime
+    mode: Literal["shadow"] = "shadow"
+    risk_level: RiskLevel
+    eligible: bool = False
+    confirmation_count: int = 0
+    confirmation_required: int = 2
+    proposed_actions: list[ShadowAction] = Field(default_factory=list)
+    blocked_reasons: list[str] = Field(default_factory=list)
+    trigger_hits: list[str] = Field(default_factory=list)
+
+
 class AiRiskReport(BaseModel):
     risk_level: RiskLevel
     summary: str
