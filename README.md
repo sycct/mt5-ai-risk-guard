@@ -42,6 +42,7 @@ DEEPSEEK_MODEL=deepseek-v4-flash
 ```powershell
 python -m risk_guard inspect
 python -m risk_guard once
+python -m risk_guard once --force-ai
 python -m risk_guard watch --interval 60
 python -m risk_guard report --date today
 python -m risk_guard report --date 2026-08-27
@@ -55,6 +56,7 @@ python -m risk_guard report --date 2026-08-27
 - `logs/alerts.jsonl`：WARNING 及以上告警
 - `logs/audit.jsonl`：检查与故障审计
 - `logs/shadow_decisions.jsonl`：影子模式拟执行动作、连续确认次数和安全阻断原因
+- `logs/ai_attempts.jsonl`：AI 调用时间、触发原因、成功状态与错误，用于跨重启冷却
 - `logs/risk_guard.log`：运行日志
 
 认证值在 MCP debug 日志中会脱敏；仍不要把原始密钥放进工具参数、注释或提交记录。
@@ -66,6 +68,17 @@ python -m risk_guard report --date 2026-08-27
 可在 `.env` 覆盖回撤阈值（例如 `WARNING_DRAWDOWN=5`）。其他阈值集中在 `risk_guard/risk_rules.py` 的 `DEFAULT_THRESHOLDS`；修改后应运行测试并按账户币种、合约规格、杠杆和策略回测校准。
 
 DeepSeek 只负责定性解释，不负责复述或计算账户数值，也不能提出对冲、加仓、补仓、具体平仓或减仓策略。风险等级不能低于硬规则等级；关键指标和账户币种由程序直接展示，建议采用与风险等级对应的确定性规则。无 Key、网络失败、包含数字或响应无效时立即使用硬规则报告，不重复调用。缺失的 MCP 能力/字段会明确列出并保留为 `None`，不会编造。
+
+常规监控仅在首次进入最低 AI 风险等级、风险等级变化且冷却结束，或高风险持续超过冷却时间时调用 DeepSeek。默认配置为：
+
+```env
+AI_ANALYSIS_ENABLED=true
+AI_ON_RISK_CHANGE=true
+AI_MIN_RISK_LEVEL=WARNING
+AI_COOLDOWN_MINUTES=60
+```
+
+AI 调用失败也会开始冷却，防止服务异常时每分钟重复消耗 Token。需要人工即时分析时使用 `python -m risk_guard once --force-ai`。AI 不参与硬规则等级或影子动作决策。
 
 所有交易开关默认关闭，且第一阶段若设置 `TRADE_ACTIONS_ENABLED=true` 会直接拒绝启动。自动平仓可能在滑点、点差扩大、网络抖动或错误映射工具时放大损失，也可能破坏对冲结构，因此不应作为默认行为；高风险场景应先由人核对账户和行情。
 

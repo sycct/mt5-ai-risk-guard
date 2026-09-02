@@ -1,8 +1,10 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from .models import RiskLevel
 
 
 class Settings(BaseSettings):
@@ -18,6 +20,10 @@ class Settings(BaseSettings):
     deepseek_api_key: str | None = None
     deepseek_base_url: str = "https://api.deepseek.com"
     deepseek_model: str = "deepseek-v4-flash"
+    ai_analysis_enabled: bool = True
+    ai_on_risk_change: bool = True
+    ai_min_risk_level: RiskLevel = RiskLevel.WARNING
+    ai_cooldown_minutes: int = Field(default=60, ge=1)
 
     mt5_symbol: str = "XAUUSD"
     ea_magic: int = 9527
@@ -37,6 +43,17 @@ class Settings(BaseSettings):
     warning_drawdown: float = 5
     danger_drawdown: float = 8
     emergency_drawdown: float = 10
+
+    @field_validator("ai_min_risk_level", mode="before")
+    @classmethod
+    def parse_ai_min_risk_level(cls, value):
+        if isinstance(value, str):
+            normalized = value.strip().upper()
+            try:
+                return RiskLevel[normalized]
+            except KeyError:
+                pass
+        return value
 
     @model_validator(mode="after")
     def enforce_phase_one_read_only(self) -> "Settings":

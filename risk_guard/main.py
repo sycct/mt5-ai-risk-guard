@@ -8,6 +8,7 @@ from rich.console import Console
 from rich.logging import RichHandler
 from rich.table import Table
 
+from .ai_policy import AiCallDecision, decide_ai_call
 from .config import Settings, get_settings
 from .deepseek_client import DeepSeekRiskAnalyst, hard_rule_fallback
 from .mcp_client import Mt5McpClient, ToolRegistry
@@ -71,7 +72,7 @@ async def _inspect() -> None:
         console.print("[green]只完成能力发现，未调用任何交易动作。[/green]")
 
 
-async def _check_once(quiet: bool = False):
+async def _check_once(quiet: bool = False, force_ai: bool = False):
     settings = get_settings(); _logging(settings); storage = JsonlStorage(settings.log_dir)
     try:
         async with _client(settings) as client:
@@ -106,15 +107,36 @@ async def _check_once(quiet: bool = False):
         logging.warning("MT5 数据无法完全对账: %s", ", ".join(assessment.metrics.data_quality_issues))
         storage.audit("data_quality_warning", {"issues": assessment.metrics.data_quality_issues})
     report = hard_rule_fallback(assessment)
-    if settings.deepseek_api_key and assessment.level is not RiskLevel.DATA_UNAVAILABLE:
-        try: report = await DeepSeekRiskAnalyst(settings.deepseek_api_key, settings.deepseek_base_url, settings.deepseek_model).analyze(snapshot, assessment)
+    ai_call = decide_ai_call(
+        enabled=settings.ai_analysis_enabled,
+        has_api_key=bool(settings.deepseek_api_key),
+        current_level=assessment.level,
+        previous_level=storage.last_snapshot_risk_level(),
+        last_attempt_at=storage.last_ai_attempt_at(),
+        min_level=settings.ai_min_risk_level,
+        on_risk_change=settings.ai_on_risk_change,
+        cooldown_minutes=settings.ai_cooldown_minutes,
+        now=datetime.now().astimezone(),
+    )
+    if force_ai and settings.deepseek_api_key and assessment.level is not RiskLevel.DATA_UNAVAILABLE:
+        ai_call = AiCallDecision(True, "manual_force")
+    if ai_call.should_call:
+        try:
+            report = await DeepSeekRiskAnalyst(
+                settings.deepseek_api_key or "", settings.deepseek_base_url,
+                settings.deepseek_model,
+            ).analyze(snapshot, assessment)
+            storage.save_ai_attempt(assessment.level, ai_call.reason, True)
         except Exception as exc:
             logging.warning("DeepSeek 不可用，使用硬规则报告: %s", exc)
             report = hard_rule_fallback(assessment, str(exc))
+            storage.save_ai_attempt(assessment.level, ai_call.reason, False, str(exc))
     else:
-        logging.info("未配置 DEEPSEEK_API_KEY，使用硬规则报告")
+        logging.debug("跳过 AI 分析: %s", ai_call.reason)
     storage.save_snapshot(snapshot, assessment, report)
-    storage.audit("risk_check", {"risk_level": assessment.level.name, "read_only": True})
+    storage.audit("risk_check", {"risk_level": assessment.level.name, "read_only": True,
+                                  "ai_call_reason": ai_call.reason,
+                                  "ai_called": ai_call.should_call})
     if not quiet:
         render_report(console, snapshot, assessment, report)
         if shadow_decision:
@@ -136,9 +158,10 @@ def inspect() -> None:
 
 
 @app.command()
-def once() -> None:
+def once(force_ai: Annotated[bool, typer.Option("--force-ai",
+         help="忽略风险门槛和冷却，人工触发一次 AI 分析")] = False) -> None:
     """执行一次只读风险检查。"""
-    asyncio.run(_check_once())
+    asyncio.run(_check_once(force_ai=force_ai))
 
 
 @app.command()

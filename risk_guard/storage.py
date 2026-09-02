@@ -69,6 +69,39 @@ class JsonlStorage:
                 break
         return count
 
+    def last_snapshot_risk_level(self) -> RiskLevel | None:
+        path = self.log_dir / "risk_snapshots.jsonl"
+        if not path.exists():
+            return None
+        for line in reversed(path.read_text(encoding="utf-8").splitlines()):
+            try:
+                value = json.loads(line)["risk_level"]
+                return RiskLevel[value] if isinstance(value, str) else RiskLevel(value)
+            except (ValueError, KeyError, json.JSONDecodeError):
+                continue
+        return None
+
+    def save_ai_attempt(self, risk_level: RiskLevel, reason: str, success: bool,
+                        error: str | None = None) -> None:
+        self._append("ai_attempts.jsonl", {
+            "timestamp": datetime.now().astimezone().isoformat(),
+            "risk_level": risk_level.name,
+            "reason": reason,
+            "success": success,
+            "error": error,
+        })
+
+    def last_ai_attempt_at(self) -> datetime | None:
+        path = self.log_dir / "ai_attempts.jsonl"
+        if not path.exists():
+            return None
+        for line in reversed(path.read_text(encoding="utf-8").splitlines()):
+            try:
+                return datetime.fromisoformat(json.loads(line)["timestamp"])
+            except (ValueError, KeyError, json.JSONDecodeError):
+                continue
+        return None
+
     def records_for(self, target: date) -> list[dict[str, Any]]:
         path = self.log_dir / "risk_snapshots.jsonl"
         if not path.exists(): return []
